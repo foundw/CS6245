@@ -43,8 +43,9 @@ public:
 
     bool runOnFunction(Function &F) override {
 
-        cout << F.getName().str() << endl;
         cout << "------------------------\n";
+        cout << F.getName().str() << endl;
+
         Instruction *start = NULL;
         Instruction *end = NULL;
         set<Value *> omp_protect;
