@@ -143,8 +143,7 @@ public:
         if (loopVar == NULL)
             return;
         parentLoop.push_back(loopVar);
-        MemoryDependenceResults &memDepResult = getAnalysis<MemoryDependenceWrapperPass>().getMemDep();
-        const AAResults &aaResults = getAnalysis<AAResultsWrapperPass>().getAAResults();
+
         const vector<Loop *> &subLoops = loop->getSubLoops();
 
 
@@ -266,7 +265,8 @@ public:
             Loop *loop = loopInfo.getLoopFor(basicBlock);
             PtrInfo *storeInfo = new PtrInfo();
             storeInfo->source = (Value *) alloInst;
-            storeInfo->hasRace = loop != nullptr && loop->getLoopDepth() >= loopDepth;
+            if (loop != nullptr && loop->getLoopDepth() >= loopDepth)
+                storeInfo->hasRace = false;
             return (*storeInfo);
         } else if (auto arrayAccessInst = dyn_cast<GetElementPtrInst>(ptr)) {
             const Value *pointer = arrayAccessInst->getPointerOperand();
