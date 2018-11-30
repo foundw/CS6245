@@ -1,6 +1,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <deque>
+#include <hash_map>
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -17,6 +18,28 @@ using namespace std;
 using namespace llvm;
 using namespace polly;
 
+
+class PtrInfo {
+public:
+    PtrInfo() {}
+
+    PtrInfo(Value *src) {
+        this->source = src;
+    }
+
+    Value *source = nullptr;
+    vector<Value *> index;
+    vector<bool> origin;
+    bool hasRace = true;
+
+    void addIndex(Value *idx, bool omp) {
+        index.push_back(idx);
+        origin.push_back(omp);
+        for (auto it = origin.begin(); hasRace && it != origin.end(); it++) {
+            hasRace = !(*it) && hasRace;
+        }
+    }
+};
 
 class FunctionPassVisitor : public FunctionPass {
 
@@ -40,6 +63,28 @@ public:
         return true;
     }
 
+    void retriveInfulence(set<Value *> &omp_protected, Value *val) {
+        for (auto user = val->user_begin(); user != val->user_end(); user++) {
+            if (auto loadInst = dyn_cast<LoadInst>((*user))) {
+                Value *prev = loadInst;
+                Value *value = loadInst->getNextNode();
+                while (value) {
+                    if (auto temp = dyn_cast<BinaryOperator>(value)) {
+                        if (temp->getOperand(0) == prev || temp->getOperand(1) == prev) {
+                            prev = value;
+                            value = temp->getNextNode();
+                        } else
+                            value = nullptr;
+                    } else if (auto temp = dyn_cast<StoreInst>(value)) {
+                        omp_protected.insert(temp->getPointerOperand());
+                        break;
+                    } else
+                        value = nullptr;
+                }
+            }
+        }
+    }
+
 
     bool runOnFunction(Function &F) override {
 
@@ -48,7 +93,7 @@ public:
 
         Instruction *start = NULL;
         Instruction *end = NULL;
-        set<Value *> omp_protect;
+        set<Value *> omp_upper;
         for (auto bb = F.begin(); bb != F.end(); bb++) {
             for (auto I = bb->begin(); I != bb->end(); I++) {
                 if (auto inst = dyn_cast<CallInst>(I)) {
@@ -56,7 +101,7 @@ public:
                         if (start == NULL)
                             start = inst;
                         Value *ops = inst->getOperand(5);
-                        omp_protect.insert(ops);
+                        omp_upper.insert(ops);
                     } else if (inst->getCalledFunction()->getName().contains_lower("__kmpc_for_static_fini"))
                         end = inst;
                 }
@@ -65,15 +110,12 @@ public:
         if (start == NULL || end == NULL)
             return true;
         const LoopInfo &loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-
+        set<Value *> omp_protected;
+        set<Value *> loopUppers;
         for (auto LI = loopInfo.begin(); LI != loopInfo.end(); LI++) {
             vector<Value *> v;
-
-            analysisLoop(omp_protect, v, (*LI), loopInfo, 0);
-
-
+            analysisLoop(omp_upper, omp_protected, v, (*LI), loopInfo, 0, loopUppers);
         }
-
         return true;
     }
 
@@ -81,33 +123,42 @@ public:
         return true;
     }
 
-    void analysisLoop(set<Value *> &omp_protected, vector<Value *> parentLoop, Loop *loop, const LoopInfo &loopInfo,
-                      int insideCritical) {
+    void analysisLoop(set<Value *> &omp_upper, set<Value *> &omp_protected, vector<Value *> parentLoop, Loop *loop,
+                      const LoopInfo &loopInfo,
+                      int insideCritical, set<Value *> &loopUppers) {
         const ArrayRef<BasicBlock *> &blocks = loop->getBlocks();
         Value *loopVar = NULL;
+
         if (auto inst = dyn_cast<LoadInst>(&blocks.front()->front())) {
             loopVar = inst->getPointerOperand();
+            if (auto upperLoad = dyn_cast<LoadInst>(inst->getNextNode())) {
+                Value *upper = upperLoad->getPointerOperand();
+                if (omp_upper.count(upper)) {
+                    omp_protected.insert(loopVar);
+                    retriveInfulence(omp_protected, loopVar);
+                }
+                loopUppers.insert(upper);
+            }
         }
         if (loopVar == NULL)
             return;
         parentLoop.push_back(loopVar);
         MemoryDependenceResults &memDepResult = getAnalysis<MemoryDependenceWrapperPass>().getMemDep();
         const AAResults &aaResults = getAnalysis<AAResultsWrapperPass>().getAAResults();
-        set<BasicBlock *> preheaders;
         const vector<Loop *> &subLoops = loop->getSubLoops();
-        for (auto subloop = subLoops.begin(); subloop != subLoops.end(); subloop++) {
-            preheaders.insert((*subloop)->getLoopPreheader());
-        }
 
 
         vector<BasicBlock *> currentBB;
         for (auto bb = blocks.begin(); bb != blocks.end(); bb++) {
-            if (loopInfo.getLoopFor((*bb)) == loop && !preheaders.count((*bb))) {
+            if (loopInfo.getLoopFor((*bb)) == loop) {
                 currentBB.push_back((*bb));
             }
         }
 
+        vector<PtrInfo *> WInst;
         for (auto bb = currentBB.begin(); bb != currentBB.end(); bb++) {
+            unordered_map<Value *, unsigned long> used;
+            vector<Value *> ldRace;
             for (auto I = (*bb)->begin(); I != (*bb)->end(); I++) {
                 if (auto inst = dyn_cast<StoreInst>(I)) {
                     /*
@@ -115,17 +166,22 @@ public:
                      * 1. not loop var
                      * 2. not loop var reachable
                      * 3. not other loop var
-                     *
                      */
 
                     Value *ptr = inst->getPointerOperand();
                     if (insideCritical == 0 && ptr != loopVar &&
-                        std::find(parentLoop.begin(), parentLoop.end(), ptr) == parentLoop.end()) {
-                        if (!resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop, loopInfo)) {
-                            (*bb)->print(rawOstream);
+                        std::find(parentLoop.begin(), parentLoop.end(), ptr) == parentLoop.end() &&
+                        !omp_protected.count(ptr)) {
+                        PtrInfo &storeInfo = resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop,
+                                                            loopInfo);
+
+                        if (storeInfo.hasRace) {
+                            inst->print(rawOstream);
                             cout << endl;
                             cout << "data races: output dependency" << endl;
+                            cout << endl;
                         }
+                        WInst.push_back(&storeInfo);
 
                     }
                 } else if (auto callInst = dyn_cast<CallInst>(I)) {
@@ -133,47 +189,108 @@ public:
                         insideCritical++;
                     } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical"))
                         insideCritical--;
+                } else if (auto inst = dyn_cast<LoadInst>(I)) {
+                    Value *ptr = inst->getPointerOperand();
+                    if (insideCritical == 0 && ptr != loopVar && !loopUppers.count(ptr) &&
+                        std::find(parentLoop.begin(), parentLoop.end(), ptr) == parentLoop.end() &&
+                        !omp_protected.count(ptr)) {
+//                        inst->print(rawOstream);
+//                        cout<<endl;
+                        PtrInfo &loadInfo = resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop,
+                                                           loopInfo);
+                        for (auto iterator = WInst.begin(); iterator != WInst.end(); iterator++) {
+                            PtrInfo *storeInfo = (*iterator);
+                            if (storeInfo->source == loadInfo.source) {
+                                bool hasRace = true;
+                                if (!storeInfo->hasRace && !loadInfo.hasRace) {
+                                    for (int i = 0; hasRace && i < storeInfo->index.size(); i++) {
+                                        if (*(storeInfo->origin.begin() + i)) {
+                                            if (*(storeInfo->index.begin() + i) == *(loadInfo.index.begin() + i))
+                                                hasRace = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (hasRace) {
+                                    if (!used.count(storeInfo->source)) {
+                                        used[storeInfo->source] = storeInfo->index.size();
+                                    } else {
+                                        if (storeInfo->index.size() > used[storeInfo->source]) {
+                                            used[storeInfo->source] = storeInfo->index.size();
+                                            for (int i = 0; i < ldRace.size(); ++i) {
+                                                if ((*(ldRace.begin() + i)) == storeInfo->source) {
+                                                    ldRace.erase(ldRace.begin() + i);
+                                                    i--;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (storeInfo->index.size() == used[storeInfo->source] &&
+                                        storeInfo->source != nullptr) {
+                                        ldRace.push_back(storeInfo->source);
+                                    }
+
+                                }
+                            }
+
+                        }
+                    }
                 }
+            }
+//            cout<<ldRace.size()<<endl;
+            for (auto it = ldRace.begin(); it != ldRace.end(); it++) {
+                (*it)->print(rawOstream);
+                cout << endl;
+                cout << "data races: anti/flow dependency" << endl;
+                cout << endl;
             }
         }
 
         for (auto subloop = subLoops.begin(); subloop != subLoops.end(); subloop++) {
-            analysisLoop(omp_protected, parentLoop, (*subloop), loopInfo, insideCritical);
+            analysisLoop(omp_upper, omp_protected, parentLoop, (*subloop), loopInfo, insideCritical, loopUppers);
         }
 
         parentLoop.pop_back();
     }
 
+
     /**
      * try to figure out whether pointer has potential dependencies
      * @return true => no dependence
      */
-    bool resolvePointer(const Value *ptr, set<Value *> &omp_protected, int loopDepth, vector<Value *> vars,
-                        const LoopInfo &loopInfo) {
+    PtrInfo &resolvePointer(const Value *ptr, set<Value *> &omp_protected, int loopDepth, vector<Value *> &vars,
+                            const LoopInfo &loopInfo) {
+        bool ans = false;
         if (auto alloInst = dyn_cast<AllocaInst>(ptr)) {
             const BasicBlock *basicBlock = alloInst->getParent();
             Loop *loop = loopInfo.getLoopFor(basicBlock);
-            return loop != nullptr && loop->getLoopDepth() >= loopDepth;
+            PtrInfo *storeInfo = new PtrInfo();
+            storeInfo->source = (Value *) alloInst;
+            storeInfo->hasRace = loop != nullptr && loop->getLoopDepth() >= loopDepth;
+            return (*storeInfo);
         } else if (auto arrayAccessInst = dyn_cast<GetElementPtrInst>(ptr)) {
             const Value *pointer = arrayAccessInst->getPointerOperand();
             const Value *index = arrayAccessInst->getOperand(arrayAccessInst->getNumIndices());
             const Value *resolvedIdx = resolveNumber(index, vars);
-            bool ptrRes = resolvePointer(pointer, omp_protected, loopDepth, vars, loopInfo);
+            PtrInfo &ptrRes = resolvePointer(pointer, omp_protected, loopDepth, vars, loopInfo);
             if (auto constant = dyn_cast<Constant>(resolvedIdx)) {
-                return ptrRes;
+                ptrRes.addIndex((Value *) constant, false);
+                ptrRes.hasRace = true;
             } else if (resolvedIdx == ptr) {
-                return ptrRes;
+                ptrRes.addIndex((Value *) resolvedIdx,
+                                std::find(omp_protected.begin(), omp_protected.end(), resolvedIdx) !=
+                                omp_protected.end());
             } else if (auto loadInst = dyn_cast<LoadInst>(resolvedIdx)) {
                 const Value *loc = loadInst->getPointerOperand();
-                if (std::find(vars.begin(), vars.end(), loc) != vars.end()) {
-                    return std::find(omp_protected.begin(), omp_protected.end(), loc) != omp_protected.end();
-                } else
-                    return ptrRes;
+                ptrRes.addIndex((Value *) loc,
+                                std::find(omp_protected.begin(), omp_protected.end(), loc) != omp_protected.end());
             } else {
-                return false;
+                ptrRes.addIndex((Value *) resolvedIdx, false);
             }
-        }
-        return false;
+            return ptrRes;
+        } else
+            return *(new PtrInfo((Value *) ptr));
+
     }
 
 
