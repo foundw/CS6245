@@ -11,7 +11,6 @@
 
 
 #include "polly/ScopPass.h"
-#include "polly/DependenceInfo.h"
 
 
 using namespace std;
@@ -196,10 +195,6 @@ public:
                         !omp_protected.count(ptr)) {
                         PtrInfo &storeInfo = resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop,
                                                             loopInfo);
-                        storeInfo.source->print(rawOstream);
-                        cout << endl;
-                        inst->print(rawOstream);
-                        cout << endl;
                         if (storeInfo.hasRace && globalScalar.count(storeInfo.source)) {
                             inst->print(rawOstream);
                             cout << endl;
