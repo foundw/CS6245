@@ -18,16 +18,16 @@ using namespace llvm;
 using namespace polly;
 
 
-
 class PtrInfo {
 public:
     PtrInfo() {}
 
     PtrInfo(Value *src) {
-      
+
         this->source = src;
     }
 
+    Value *storeInst;
     Value *source = nullptr;
     vector<Value *> index;
     vector<bool> origin;
@@ -47,6 +47,7 @@ class FunctionPassVisitor : public FunctionPass {
     raw_os_ostream rawOstream;
     deque<Loop *> LQ;
     unordered_map<Value *, vector<Instruction *>> Writes;
+    unordered_map<Value *, Value *> ReadsWrites;
 public:
     static char ID;
 
@@ -65,11 +66,11 @@ public:
         return true;
     }
 
-    void printResult(){
+    void printResult() {
         // Print Write-Write Races
-        for(auto opr : Writes){
-            for(int i = 0; i < opr.second.size(); i++){
-                for(int j = 0; j < opr.second.size(); j++){
+        for (auto opr : Writes) {
+            for (int i = 0; i < opr.second.size(); i++) {
+                for (int j = 0; j < opr.second.size(); j++) {
                     (opr.second[i])->print(rawOstream);
                     cout << endl;
                     (opr.second[j])->print(rawOstream);
@@ -79,7 +80,15 @@ public:
                 }
             }
         }
-        // Print Read-Write Races todo
+        // Print Read-Write Races
+        for (auto opr : ReadsWrites) {
+            (opr.first)->print(rawOstream);
+            cout << endl;
+            (opr.second)->print(rawOstream);
+            cout << endl;
+            cout << "data races: read-write" << endl;
+            cout << endl;
+        }
     }
 
     void retrieveInfulence(set<Value *> &omp_protected, Value *val) {
@@ -154,7 +163,7 @@ public:
 
 
         const LoopInfo &loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-        for(int i = 0; i < (int)start.size(); i++){
+        for (int i = 0; i < (int) start.size(); i++) {
             set<Value *> omp_upper;
             set<Value *> omp_protected;
             set<Value *> loopUppers;
@@ -163,9 +172,10 @@ public:
             Value *ops = start[i]->getOperand(5);
             omp_upper.insert(ops);
             auto current = start[i]->getParent(), terminate = end[i]->getParent();
-            while(current != terminate && loopInfo.getLoopDepth(current) == 0){
+            while (current != terminate && loopInfo.getLoopDepth(current) == 0) {
                 current = current->getNextNode();
             }
+            ReadsWrites.clear();
             Writes.clear(); // Init for each region (there is a barrior at the end of each region)
             analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, 0, loopUppers,
                          globalScalar);
@@ -212,8 +222,6 @@ public:
 
         vector<PtrInfo *> WInst;
         for (auto bb = currentBB.begin(); bb != currentBB.end(); bb++) {
-            unordered_map<Value *, unsigned long> used;
-            vector<Value *> ldRace;
             for (auto I = (*bb)->begin(); I != (*bb)->end(); I++) {
                 if (auto inst = dyn_cast<StoreInst>(I)) {
                     /*
@@ -232,6 +240,7 @@ public:
                         if (storeInfo.hasRace && globalScalar.count(storeInfo.source)) {
                             Writes[inst->getPointerOperand()].push_back(inst);
                         }
+                        storeInfo.storeInst = inst;
                         WInst.push_back(&storeInfo);
 
                     }
@@ -240,13 +249,27 @@ public:
                         insideCritical++;
                     } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical"))
                         insideCritical--;
+                }
+            }
+        }
+        //first search write, then search read
+        for (auto bb = currentBB.begin(); bb != currentBB.end(); bb++) {
+            unordered_map<Value *, unsigned long> used;
+            vector<Value *> ldRace;
+            vector<Value *> ldInsts;
+            vector<PtrInfo *> ldShow;
+            for (auto I = (*bb)->begin(); I != (*bb)->end(); I++) {
+                if (auto callInst = dyn_cast<CallInst>(I)) {
+                    if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_critical")) {
+                        insideCritical++;
+                    } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical"))
+                        insideCritical--;
                 } else if (auto inst = dyn_cast<LoadInst>(I)) {
                     Value *ptr = inst->getPointerOperand();
                     if (insideCritical == 0 && ptr != loopVar && !loopUppers.count(ptr) &&
                         std::find(parentLoop.begin(), parentLoop.end(), ptr) == parentLoop.end() &&
-                        !omp_protected.count(ptr)) {
-//                        inst->print(rawOstream);
-//                        cout<<endl;
+                        !omp_protected.count(ptr) && !inst->getType()->isPointerTy()) {
+
                         PtrInfo &loadInfo = resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop,
                                                            loopInfo);
                         for (auto iterator = WInst.begin(); iterator != WInst.end(); iterator++) {
@@ -271,6 +294,8 @@ public:
                                             for (int i = 0; i < ldRace.size(); ++i) {
                                                 if ((*(ldRace.begin() + i)) == storeInfo->source) {
                                                     ldRace.erase(ldRace.begin() + i);
+                                                    ldShow.erase(ldShow.begin() + i);
+                                                    ldInsts.erase(ldInsts.begin() + i);
                                                     i--;
                                                 }
                                             }
@@ -279,6 +304,8 @@ public:
                                     if (storeInfo->index.size() == used[storeInfo->source] &&
                                         storeInfo->source != nullptr) {
                                         ldRace.push_back(storeInfo->source);
+                                        ldShow.push_back(storeInfo);
+                                        ldInsts.push_back(inst);
                                     }
 
                                 }
@@ -288,12 +315,10 @@ public:
                     }
                 }
             }
-//            cout<<ldRace.size()<<endl;
-            for (auto it = ldRace.begin(); it != ldRace.end(); it++) {
-                (*it)->print(rawOstream);
-                cout << endl;
-                cout << "data races: anti/flow dependency" << endl;
-                cout << endl;
+            auto show = ldShow.begin();
+            auto ldInst = ldInsts.begin();
+            for (auto it = ldRace.begin(); it != ldRace.end(); it++, show++, ldInst++) {
+                ReadsWrites[(*ldInst)] = (*show)->storeInst;
             }
         }
 
