@@ -323,7 +323,20 @@ public:
         }
 
         for (auto subloop = subLoops.begin(); subloop != subLoops.end(); subloop++) {
-            analysisLoop(omp_upper, omp_protected, parentLoop, (*subloop), loopInfo, insideCritical, loopUppers,
+            int imax = insideCritical;
+            for (auto bb = blocks.begin(); bb != blocks.end(); bb++) {
+                if (loopInfo.getLoopFor((*bb)) == (*subloop))
+                    break;
+                for (auto I = (*bb)->begin(); I != (*bb)->end(); I++) {
+                    if (auto callInst = dyn_cast<CallInst>(I)) {
+                        if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_critical")) {
+                            imax++;
+                        } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical"))
+                            imax--;
+                    }
+                }
+            }
+            analysisLoop(omp_upper, omp_protected, parentLoop, (*subloop), loopInfo, imax, loopUppers,
                          globalScalar);
         }
 
