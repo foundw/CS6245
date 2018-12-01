@@ -19,7 +19,6 @@ using namespace llvm;
 using namespace polly;
 
 
-unordered_map<Value *, vector<Instruction *>> Writes;
 
 class PtrInfo {
 public:
@@ -47,6 +46,7 @@ class FunctionPassVisitor : public FunctionPass {
 
     raw_os_ostream rawOstream;
     deque<Loop *> LQ;
+    unordered_map<Value *, vector<Instruction *>> Writes;
 public:
     static char ID;
 
@@ -63,6 +63,23 @@ public:
 
     bool doInitialization(Module &M) {
         return true;
+    }
+
+    void printResult(){
+        // Print Write-Write Races
+        for(auto opr : Writes){
+            for(int i = 0; i < opr.second.size(); i++){
+                for(int j = 0; j < opr.second.size(); j++){
+                    (opr.second[i])->print(rawOstream);
+                    cout << endl;
+                    (opr.second[j])->print(rawOstream);
+                    cout << endl;
+                    cout << "data races: write-write" << endl;
+                    cout << endl;
+                }
+            }
+        }
+        // Print Read-Write Races todo
     }
 
     void retriveInfulence(set<Value *> &omp_protected, Value *val) {
@@ -122,20 +139,9 @@ public:
             while(current != terminate && loopInfo.getLoopDepth(current) == 0){
                 current = current->getNextNode();
             }
+            Writes.clear(); // Init for each region (there is a barrior at the end of each region)
             analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, 0, loopUppers);
-            // Print Write-Write Races
-            for(auto opr : Writes){
-                for(int i = 0; i < opr.second.size(); i++){
-                    for(int j = 0; j < opr.second.size(); j++){
-                        (opr.second[i])->print(rawOstream);
-                        cout << endl;
-                        (opr.second[j])->print(rawOstream);
-                        cout << endl;
-                        cout << "data races: write-write" << endl;
-                        cout << endl;
-                    }
-                }
-            }
+            printResult();
         }
         return true;
     }
