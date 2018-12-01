@@ -11,7 +11,6 @@
 
 
 #include "polly/ScopPass.h"
-#include "polly/DependenceInfo.h"
 
 
 using namespace std;
@@ -24,6 +23,7 @@ public:
     PtrInfo() {}
 
     PtrInfo(Value *src) {
+      
         this->source = src;
     }
 
@@ -63,7 +63,7 @@ public:
         return true;
     }
 
-    void retriveInfulence(set<Value *> &omp_protected, Value *val) {
+    void retrieveInfulence(set<Value *> &omp_protected, Value *val) {
         for (auto user = val->user_begin(); user != val->user_end(); user++) {
             if (auto loadInst = dyn_cast<LoadInst>((*user))) {
                 Value *prev = loadInst;
@@ -107,13 +107,40 @@ public:
         if (start.size() == 0)
             return true;
 
+
         assert(start.size() == end.size());
+
+        /**
+         * update 2018-11-30
+         * we want to regard all the allocations inside omp method to be local
+         * so we need to retrieve the pass in parameters & influences
+         *
+         * the the operations will happen in the first block of method
+         */
+        set<Value *> globalScalar;
+        for (auto arg = F.arg_begin(); arg != F.arg_end(); arg++) {
+            if ((*arg).getType()->isPointerTy()) {
+                globalScalar.insert(arg);
+            }
+        }
+        for (auto inst = F.getEntryBlock().begin(); inst != F.getEntryBlock().end(); inst++) {
+            if (auto storeInst = dyn_cast<StoreInst>(inst)) {
+                if (globalScalar.count(storeInst->getValueOperand()))
+                    globalScalar.insert(storeInst->getPointerOperand());
+            } else if (auto loadInst = dyn_cast<LoadInst>(inst)) {
+                if (globalScalar.count(loadInst->getPointerOperand()))
+                    globalScalar.insert(loadInst);
+            }
+        }
+
+
         const LoopInfo &loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
         for(int i = 0; i < (int)start.size(); i++){
             set<Value *> omp_upper;
             set<Value *> omp_protected;
             set<Value *> loopUppers;
             vector<Value *> v;
+
             Value *ops = start[i]->getOperand(5);
             omp_upper.insert(ops);
             auto current = start[i]->getParent(), terminate = end[i]->getParent();
@@ -121,6 +148,7 @@ public:
                 current = current->getNextNode();
             }
             analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, 0, loopUppers);
+
         }
         return true;
     }
@@ -131,7 +159,7 @@ public:
 
     void analysisLoop(set<Value *> &omp_upper, set<Value *> &omp_protected, vector<Value *> parentLoop, Loop *loop,
                       const LoopInfo &loopInfo,
-                      int insideCritical, set<Value *> &loopUppers) {
+                      int insideCritical, set<Value *> &loopUppers, set<Value *> globalScalar) {
         const ArrayRef<BasicBlock *> &blocks = loop->getBlocks();
         Value *loopVar = NULL;
 
@@ -141,7 +169,7 @@ public:
                 Value *upper = upperLoad->getPointerOperand();
                 if (omp_upper.count(upper)) {
                     omp_protected.insert(loopVar);
-                    retriveInfulence(omp_protected, loopVar);
+                    retrieveInfulence(omp_protected, loopVar);
                 }
                 loopUppers.insert(upper);
             }
@@ -179,8 +207,7 @@ public:
                         !omp_protected.count(ptr)) {
                         PtrInfo &storeInfo = resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop,
                                                             loopInfo);
-
-                        if (storeInfo.hasRace) {
+                        if (storeInfo.hasRace && globalScalar.count(storeInfo.source)) {
                             inst->print(rawOstream);
                             cout << endl;
                             cout << "data races: output dependency" << endl;
@@ -252,7 +279,8 @@ public:
         }
 
         for (auto subloop = subLoops.begin(); subloop != subLoops.end(); subloop++) {
-            analysisLoop(omp_upper, omp_protected, parentLoop, (*subloop), loopInfo, insideCritical, loopUppers);
+            analysisLoop(omp_upper, omp_protected, parentLoop, (*subloop), loopInfo, insideCritical, loopUppers,
+                         globalScalar);
         }
 
         parentLoop.pop_back();
@@ -294,6 +322,8 @@ public:
                 ptrRes.addIndex((Value *) resolvedIdx, false);
             }
             return ptrRes;
+        } else if (auto loadInst = dyn_cast<LoadInst>(ptr)) {
+            return resolvePointer(loadInst->getPointerOperand(), omp_protected, loopDepth, vars, loopInfo);
         } else
             return *(new PtrInfo((Value *) ptr));
 
