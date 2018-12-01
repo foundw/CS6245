@@ -19,6 +19,8 @@ using namespace llvm;
 using namespace polly;
 
 
+unordered_map<Value *, vector<Instruction *>> Writes;
+
 class PtrInfo {
 public:
     PtrInfo() {}
@@ -121,6 +123,19 @@ public:
                 current = current->getNextNode();
             }
             analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, 0, loopUppers);
+            // Print Write-Write Races
+            for(auto opr : Writes){
+                for(int i = 0; i < opr.second.size(); i++){
+                    for(int j = 0; j < opr.second.size(); j++){
+                        (opr.second[i])->print(rawOstream);
+                        cout << endl;
+                        (opr.second[j])->print(rawOstream);
+                        cout << endl;
+                        cout << "data races: write-write" << endl;
+                        cout << endl;
+                    }
+                }
+            }
         }
         return true;
     }
@@ -180,11 +195,14 @@ public:
                         PtrInfo &storeInfo = resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop,
                                                             loopInfo);
 
+//                        if (storeInfo.hasRace) {
+//                            inst->print(rawOstream);
+//                            cout << endl;
+//                            cout << "data races: output dependency" << endl;
+//                            cout << endl;
+//                        }
                         if (storeInfo.hasRace) {
-                            inst->print(rawOstream);
-                            cout << endl;
-                            cout << "data races: output dependency" << endl;
-                            cout << endl;
+                            Writes[inst->getPointerOperand()].push_back(inst);
                         }
                         WInst.push_back(&storeInfo);
 
