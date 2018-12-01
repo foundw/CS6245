@@ -82,7 +82,7 @@ public:
         // Print Read-Write Races todo
     }
 
-    void retriveInfulence(set<Value *> &omp_protected, Value *val) {
+    void retrieveInfulence(set<Value *> &omp_protected, Value *val) {
         for (auto user = val->user_begin(); user != val->user_end(); user++) {
             if (auto loadInst = dyn_cast<LoadInst>((*user))) {
                 Value *prev = loadInst;
@@ -167,7 +167,8 @@ public:
                 current = current->getNextNode();
             }
             Writes.clear(); // Init for each region (there is a barrior at the end of each region)
-            analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, 0, loopUppers);
+            analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, 0, loopUppers,
+                         globalScalar);
             printResult();
 
         }
