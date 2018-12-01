@@ -394,6 +394,6 @@ public:
 };
 
 char FunctionPassVisitor::ID = 0;
-static RegisterPass<FunctionPassVisitor> X("hello", "Hello World Pass",
+static RegisterPass<FunctionPassVisitor> X("cs6245", "Gatech CS6245 Project Pass",
                                            false /* Only looks at CFG */,
                                            false /* Analysis Pass */);
