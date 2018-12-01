@@ -23,6 +23,7 @@ public:
     PtrInfo() {}
 
     PtrInfo(Value *src) {
+      
         this->source = src;
     }
 
@@ -90,24 +91,25 @@ public:
         cout << "------------------------\n";
         cout << F.getName().str() << endl;
 
-        Instruction *start = NULL;
-        Instruction *end = NULL;
-        set<Value *> omp_upper;
+        vector<Instruction *> start;
+        vector<Instruction *> end;
+
         for (auto bb = F.begin(); bb != F.end(); bb++) {
             for (auto I = bb->begin(); I != bb->end(); I++) {
                 if (auto inst = dyn_cast<CallInst>(I)) {
                     if (inst->getCalledFunction()->getName().contains_lower("__kmpc_for_static_init")) {
-                        if (start == NULL)
-                            start = inst;
-                        Value *ops = inst->getOperand(5);
-                        omp_upper.insert(ops);
+                        start.push_back(inst);
                     } else if (inst->getCalledFunction()->getName().contains_lower("__kmpc_for_static_fini"))
-                        end = inst;
+                        end.push_back(inst);
                 }
             }
         }
-        if (start == NULL || end == NULL)
+        if (start.size() == 0)
             return true;
+
+
+        assert(start.size() == end.size());
+
         /**
          * update 2018-11-30
          * we want to regard all the allocations inside omp method to be local
@@ -131,12 +133,22 @@ public:
             }
         }
 
+
         const LoopInfo &loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-        set<Value *> omp_protected;
-        set<Value *> loopUppers;
-        for (auto LI = loopInfo.begin(); LI != loopInfo.end(); LI++) {
+        for(int i = 0; i < (int)start.size(); i++){
+            set<Value *> omp_upper;
+            set<Value *> omp_protected;
+            set<Value *> loopUppers;
             vector<Value *> v;
-            analysisLoop(omp_upper, omp_protected, v, (*LI), loopInfo, 0, loopUppers, globalScalar);
+
+            Value *ops = start[i]->getOperand(5);
+            omp_upper.insert(ops);
+            auto current = start[i]->getParent(), terminate = end[i]->getParent();
+            while(current != terminate && loopInfo.getLoopDepth(current) == 0){
+                current = current->getNextNode();
+            }
+            analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, 0, loopUppers);
+
         }
         return true;
     }
