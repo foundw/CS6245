@@ -118,7 +118,7 @@ public:
             omp_upper.insert(ops);
             auto current = start[i]->getParent(), terminate = end[i]->getParent();
             while(current != terminate && loopInfo.getLoopDepth(current) == 0){
-                current++;
+                current = current->getNextNode();
             }
             analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, 0, loopUppers);
         }
