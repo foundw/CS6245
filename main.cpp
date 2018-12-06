@@ -70,7 +70,7 @@ public:
         // Print Write-Write Races
         for (auto opr : Writes) {
             for (int i = 0; i < opr.second.size(); i++) {
-                for (int j = 0; j < opr.second.size(); j++) {
+                for (int j = i; j < opr.second.size(); j++) {
                     (opr.second[i])->print(rawOstream);
                     cout << endl;
                     (opr.second[j])->print(rawOstream);
