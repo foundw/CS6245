@@ -46,7 +46,7 @@ class FunctionPassVisitor : public FunctionPass {
 
     raw_os_ostream rawOstream;
     deque<Loop *> LQ;
-    unordered_map<Value *, vector<Instruction *>> Writes;
+    unordered_map<Value *, vector<pair<Value *, Instruction *>>> Writes;
     unordered_map<Value *, Value *> ReadsWrites;
 public:
     static char ID;
@@ -67,16 +67,22 @@ public:
     }
 
     void printResult() {
+        cout << "Data Races Report:" << endl;
+        int cnt = 0;
         // Print Write-Write Races
         for (auto opr : Writes) {
             for (int i = 0; i < opr.second.size(); i++) {
                 for (int j = i; j < opr.second.size(); j++) {
-                    (opr.second[i])->print(rawOstream);
+                    if(opr.second[i].first && opr.second[i].first == opr.second[j].first){
+                        continue;
+                    }
+                    (opr.second[i].second)->print(rawOstream);
                     cout << endl;
-                    (opr.second[j])->print(rawOstream);
+                    (opr.second[j].second)->print(rawOstream);
                     cout << endl;
                     cout << "data races: write-write" << endl;
                     cout << endl;
+                    cnt++;
                 }
             }
         }
@@ -88,7 +94,9 @@ public:
             cout << endl;
             cout << "data races: read-write" << endl;
             cout << endl;
+            cnt++;
         }
+        cout << cnt << " races detected." << endl;
     }
 
     void retrieveInfulence(set<Value *> &omp_protected, Value *val) {
@@ -177,7 +185,7 @@ public:
             }
             ReadsWrites.clear();
             Writes.clear(); // Init for each region (there is a barrior at the end of each region)
-            analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, 0, loopUppers,
+            analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, nullptr, loopUppers,
                          globalScalar);
             printResult();
 
@@ -191,7 +199,7 @@ public:
 
     void analysisLoop(set<Value *> &omp_upper, set<Value *> &omp_protected, vector<Value *> parentLoop, Loop *loop,
                       const LoopInfo &loopInfo,
-                      int insideCritical, set<Value *> &loopUppers, set<Value *> globalScalar) {
+                      Value * critical, set<Value *> &loopUppers, set<Value *> globalScalar) {
         const ArrayRef<BasicBlock *> &blocks = loop->getBlocks();
         Value *loopVar = NULL;
 
@@ -220,7 +228,7 @@ public:
             }
         }
 
-        vector<PtrInfo *> WInst;
+        vector<pair<Value *, PtrInfo *>> WInst;
         for (auto bb = currentBB.begin(); bb != currentBB.end(); bb++) {
             for (auto I = (*bb)->begin(); I != (*bb)->end(); I++) {
                 if (auto inst = dyn_cast<StoreInst>(I)) {
@@ -232,23 +240,26 @@ public:
                      */
 
                     Value *ptr = inst->getPointerOperand();
-                    if (insideCritical == 0 && ptr != loopVar &&
+                    if (ptr != loopVar &&
                         std::find(parentLoop.begin(), parentLoop.end(), ptr) == parentLoop.end() &&
                         !omp_protected.count(ptr)) {
                         PtrInfo &storeInfo = resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop,
                                                             loopInfo);
                         if (storeInfo.hasRace && globalScalar.count(storeInfo.source)) {
-                            Writes[inst->getPointerOperand()].push_back(inst);
+                            Writes[inst->getPointerOperand()].push_back(make_pair(critical, inst));
                         }
                         storeInfo.storeInst = inst;
-                        WInst.push_back(&storeInfo);
+                        WInst.push_back(make_pair(critical, &storeInfo));
 
                     }
                 } else if (auto callInst = dyn_cast<CallInst>(I)) {
                     if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_critical")) {
-                        insideCritical++;
-                    } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical"))
-                        insideCritical--;
+                        assert(!critical);
+                        critical = callInst;
+                    } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical")) {
+                        assert(critical);
+                        critical = nullptr;
+                    }
                 }
             }
         }
@@ -261,19 +272,25 @@ public:
             for (auto I = (*bb)->begin(); I != (*bb)->end(); I++) {
                 if (auto callInst = dyn_cast<CallInst>(I)) {
                     if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_critical")) {
-                        insideCritical++;
-                    } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical"))
-                        insideCritical--;
+                        assert(!critical);
+                        critical = callInst;
+                    } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical")) {
+                        assert(critical);
+                        critical = nullptr;
+                    }
                 } else if (auto inst = dyn_cast<LoadInst>(I)) {
                     Value *ptr = inst->getPointerOperand();
-                    if (insideCritical == 0 && ptr != loopVar && !loopUppers.count(ptr) &&
+                    if (ptr != loopVar && !loopUppers.count(ptr) &&
                         std::find(parentLoop.begin(), parentLoop.end(), ptr) == parentLoop.end() &&
                         !omp_protected.count(ptr) && !inst->getType()->isPointerTy()) {
 
                         PtrInfo &loadInfo = resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop,
                                                            loopInfo);
                         for (auto iterator = WInst.begin(); iterator != WInst.end(); iterator++) {
-                            PtrInfo *storeInfo = (*iterator);
+                            if(critical && critical == iterator->first){
+                                continue;
+                            }
+                            PtrInfo *storeInfo = (iterator->second);
                             if (storeInfo->source == loadInfo.source) {
                                 bool hasRace = true;
                                 if (!storeInfo->hasRace && !loadInfo.hasRace) {
@@ -323,20 +340,23 @@ public:
         }
 
         for (auto subloop = subLoops.begin(); subloop != subLoops.end(); subloop++) {
-            int imax = insideCritical;
+            Value * scritical = critical;
             for (auto bb = blocks.begin(); bb != blocks.end(); bb++) {
                 if (loopInfo.getLoopFor((*bb)) == (*subloop))
                     break;
                 for (auto I = (*bb)->begin(); I != (*bb)->end(); I++) {
                     if (auto callInst = dyn_cast<CallInst>(I)) {
                         if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_critical")) {
-                            imax++;
-                        } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical"))
-                            imax--;
+                            assert(!critical);
+                            scritical = callInst;
+                        } else if (callInst->getCalledFunction()->getName().contains_lower("__kmpc_end_critical")) {
+                            assert(critical);
+                            scritical = nullptr;
+                        }
                     }
                 }
             }
-            analysisLoop(omp_upper, omp_protected, parentLoop, (*subloop), loopInfo, imax, loopUppers,
+            analysisLoop(omp_upper, omp_protected, parentLoop, (*subloop), loopInfo, scritical, loopUppers,
                          globalScalar);
         }
 
