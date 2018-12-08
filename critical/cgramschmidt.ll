@@ -516,7 +516,7 @@ define internal void @.omp_outlined.(i32* noalias, i32* noalias, i32* dereferenc
   store i32 0, i32* %23, align 4
   %44 = load i32, i32* %21, align 4
   %45 = icmp slt i32 0, %44
-  br i1 %45, label %46, label %245
+  br i1 %45, label %46, label %243
 
 ; <label>:46:                                     ; preds = %9
   store i32 0, i32* %24, align 4
@@ -547,11 +547,11 @@ define internal void @.omp_outlined.(i32* noalias, i32* noalias, i32* dereferenc
   store i32 %59, i32* %19, align 4
   br label %60
 
-; <label>:60:                                     ; preds = %238, %57
+; <label>:60:                                     ; preds = %236, %57
   %61 = load i32, i32* %19, align 4
   %62 = load i32, i32* %25, align 4
   %63 = icmp sle i32 %61, %62
-  br i1 %63, label %64, label %241
+  br i1 %63, label %64, label %239
 
 ; <label>:64:                                     ; preds = %60
   %65 = load i32, i32* %19, align 4
@@ -655,17 +655,16 @@ define internal void @.omp_outlined.(i32* noalias, i32* noalias, i32* dereferenc
   br label %107
 
 ; <label>:139:                                    ; preds = %107
-  call void @__kmpc_end_critical(%ident_t* @1, i32 %69, [8 x i32]* @.gomp_critical_user_.var)
   %140 = load i32, i32* %23, align 4
   %141 = add nsw i32 %140, 1
   store i32 %141, i32* %29, align 4
   br label %142
 
-; <label>:142:                                    ; preds = %233, %139
+; <label>:142:                                    ; preds = %231, %139
   %143 = load i32, i32* %29, align 4
   %144 = load i32, i32* %31, align 4
   %145 = icmp slt i32 %143, %144
-  br i1 %145, label %146, label %236
+  br i1 %145, label %146, label %234
 
 ; <label>:146:                                    ; preds = %142
   %147 = load [512 x double]*, [512 x double]** %35, align 8
@@ -676,139 +675,136 @@ define internal void @.omp_outlined.(i32* noalias, i32* noalias, i32* dereferenc
   %152 = sext i32 %151 to i64
   %153 = getelementptr inbounds [512 x double], [512 x double]* %150, i64 0, i64 %152
   store double 0.000000e+00, double* %153, align 8
-  %154 = load i32*, i32** %10, align 8
-  %155 = load i32, i32* %154, align 4
-  call void @__kmpc_critical(%ident_t* @1, i32 %155, [8 x i32]* @.gomp_critical_user_.var)
   store i32 0, i32* %28, align 4
-  br label %156
+  br label %154
 
-; <label>:156:                                    ; preds = %187, %146
-  %157 = load i32, i32* %28, align 4
-  %158 = load i32, i32* %33, align 4
-  %159 = icmp slt i32 %157, %158
-  br i1 %159, label %160, label %190
+; <label>:154:                                    ; preds = %185, %146
+  %155 = load i32, i32* %28, align 4
+  %156 = load i32, i32* %33, align 4
+  %157 = icmp slt i32 %155, %156
+  br i1 %157, label %158, label %188
 
-; <label>:160:                                    ; preds = %156
-  %161 = load [512 x double]*, [512 x double]** %36, align 8
-  %162 = load i32, i32* %28, align 4
-  %163 = sext i32 %162 to i64
-  %164 = getelementptr inbounds [512 x double], [512 x double]* %161, i64 %163
-  %165 = load i32, i32* %23, align 4
-  %166 = sext i32 %165 to i64
-  %167 = getelementptr inbounds [512 x double], [512 x double]* %164, i64 0, i64 %166
-  %168 = load double, double* %167, align 8
-  %169 = load [512 x double]*, [512 x double]** %34, align 8
-  %170 = load i32, i32* %28, align 4
-  %171 = sext i32 %170 to i64
-  %172 = getelementptr inbounds [512 x double], [512 x double]* %169, i64 %171
-  %173 = load i32, i32* %29, align 4
-  %174 = sext i32 %173 to i64
-  %175 = getelementptr inbounds [512 x double], [512 x double]* %172, i64 0, i64 %174
-  %176 = load double, double* %175, align 8
-  %177 = fmul double %168, %176
-  %178 = load [512 x double]*, [512 x double]** %35, align 8
-  %179 = load i32, i32* %23, align 4
-  %180 = sext i32 %179 to i64
-  %181 = getelementptr inbounds [512 x double], [512 x double]* %178, i64 %180
-  %182 = load i32, i32* %29, align 4
-  %183 = sext i32 %182 to i64
-  %184 = getelementptr inbounds [512 x double], [512 x double]* %181, i64 0, i64 %183
-  %185 = load double, double* %184, align 8
-  %186 = fadd double %185, %177
-  store double %186, double* %184, align 8
-  br label %187
+; <label>:158:                                    ; preds = %154
+  %159 = load [512 x double]*, [512 x double]** %36, align 8
+  %160 = load i32, i32* %28, align 4
+  %161 = sext i32 %160 to i64
+  %162 = getelementptr inbounds [512 x double], [512 x double]* %159, i64 %161
+  %163 = load i32, i32* %23, align 4
+  %164 = sext i32 %163 to i64
+  %165 = getelementptr inbounds [512 x double], [512 x double]* %162, i64 0, i64 %164
+  %166 = load double, double* %165, align 8
+  %167 = load [512 x double]*, [512 x double]** %34, align 8
+  %168 = load i32, i32* %28, align 4
+  %169 = sext i32 %168 to i64
+  %170 = getelementptr inbounds [512 x double], [512 x double]* %167, i64 %169
+  %171 = load i32, i32* %29, align 4
+  %172 = sext i32 %171 to i64
+  %173 = getelementptr inbounds [512 x double], [512 x double]* %170, i64 0, i64 %172
+  %174 = load double, double* %173, align 8
+  %175 = fmul double %166, %174
+  %176 = load [512 x double]*, [512 x double]** %35, align 8
+  %177 = load i32, i32* %23, align 4
+  %178 = sext i32 %177 to i64
+  %179 = getelementptr inbounds [512 x double], [512 x double]* %176, i64 %178
+  %180 = load i32, i32* %29, align 4
+  %181 = sext i32 %180 to i64
+  %182 = getelementptr inbounds [512 x double], [512 x double]* %179, i64 0, i64 %181
+  %183 = load double, double* %182, align 8
+  %184 = fadd double %183, %175
+  store double %184, double* %182, align 8
+  br label %185
 
-; <label>:187:                                    ; preds = %160
-  %188 = load i32, i32* %28, align 4
-  %189 = add nsw i32 %188, 1
-  store i32 %189, i32* %28, align 4
-  br label %156
+; <label>:185:                                    ; preds = %158
+  %186 = load i32, i32* %28, align 4
+  %187 = add nsw i32 %186, 1
+  store i32 %187, i32* %28, align 4
+  br label %154
 
-; <label>:190:                                    ; preds = %156
+; <label>:188:                                    ; preds = %154
   store i32 0, i32* %28, align 4
-  br label %191
+  br label %189
 
-; <label>:191:                                    ; preds = %229, %190
-  %192 = load i32, i32* %28, align 4
-  %193 = load i32, i32* %33, align 4
-  %194 = icmp slt i32 %192, %193
-  br i1 %194, label %195, label %232
+; <label>:189:                                    ; preds = %227, %188
+  %190 = load i32, i32* %28, align 4
+  %191 = load i32, i32* %33, align 4
+  %192 = icmp slt i32 %190, %191
+  br i1 %192, label %193, label %230
 
-; <label>:195:                                    ; preds = %191
-  %196 = load [512 x double]*, [512 x double]** %34, align 8
-  %197 = load i32, i32* %28, align 4
-  %198 = sext i32 %197 to i64
-  %199 = getelementptr inbounds [512 x double], [512 x double]* %196, i64 %198
-  %200 = load i32, i32* %29, align 4
-  %201 = sext i32 %200 to i64
-  %202 = getelementptr inbounds [512 x double], [512 x double]* %199, i64 0, i64 %201
-  %203 = load double, double* %202, align 8
-  %204 = load [512 x double]*, [512 x double]** %36, align 8
-  %205 = load i32, i32* %28, align 4
-  %206 = sext i32 %205 to i64
-  %207 = getelementptr inbounds [512 x double], [512 x double]* %204, i64 %206
-  %208 = load i32, i32* %23, align 4
-  %209 = sext i32 %208 to i64
-  %210 = getelementptr inbounds [512 x double], [512 x double]* %207, i64 0, i64 %209
-  %211 = load double, double* %210, align 8
-  %212 = load [512 x double]*, [512 x double]** %35, align 8
-  %213 = load i32, i32* %23, align 4
-  %214 = sext i32 %213 to i64
-  %215 = getelementptr inbounds [512 x double], [512 x double]* %212, i64 %214
-  %216 = load i32, i32* %29, align 4
-  %217 = sext i32 %216 to i64
-  %218 = getelementptr inbounds [512 x double], [512 x double]* %215, i64 0, i64 %217
-  %219 = load double, double* %218, align 8
-  %220 = fmul double %211, %219
-  %221 = fsub double %203, %220
-  %222 = load [512 x double]*, [512 x double]** %34, align 8
-  %223 = load i32, i32* %28, align 4
-  %224 = sext i32 %223 to i64
-  %225 = getelementptr inbounds [512 x double], [512 x double]* %222, i64 %224
-  %226 = load i32, i32* %29, align 4
-  %227 = sext i32 %226 to i64
-  %228 = getelementptr inbounds [512 x double], [512 x double]* %225, i64 0, i64 %227
-  store double %221, double* %228, align 8
-  br label %229
+; <label>:193:                                    ; preds = %189
+  %194 = load [512 x double]*, [512 x double]** %34, align 8
+  %195 = load i32, i32* %28, align 4
+  %196 = sext i32 %195 to i64
+  %197 = getelementptr inbounds [512 x double], [512 x double]* %194, i64 %196
+  %198 = load i32, i32* %29, align 4
+  %199 = sext i32 %198 to i64
+  %200 = getelementptr inbounds [512 x double], [512 x double]* %197, i64 0, i64 %199
+  %201 = load double, double* %200, align 8
+  %202 = load [512 x double]*, [512 x double]** %36, align 8
+  %203 = load i32, i32* %28, align 4
+  %204 = sext i32 %203 to i64
+  %205 = getelementptr inbounds [512 x double], [512 x double]* %202, i64 %204
+  %206 = load i32, i32* %23, align 4
+  %207 = sext i32 %206 to i64
+  %208 = getelementptr inbounds [512 x double], [512 x double]* %205, i64 0, i64 %207
+  %209 = load double, double* %208, align 8
+  %210 = load [512 x double]*, [512 x double]** %35, align 8
+  %211 = load i32, i32* %23, align 4
+  %212 = sext i32 %211 to i64
+  %213 = getelementptr inbounds [512 x double], [512 x double]* %210, i64 %212
+  %214 = load i32, i32* %29, align 4
+  %215 = sext i32 %214 to i64
+  %216 = getelementptr inbounds [512 x double], [512 x double]* %213, i64 0, i64 %215
+  %217 = load double, double* %216, align 8
+  %218 = fmul double %209, %217
+  %219 = fsub double %201, %218
+  %220 = load [512 x double]*, [512 x double]** %34, align 8
+  %221 = load i32, i32* %28, align 4
+  %222 = sext i32 %221 to i64
+  %223 = getelementptr inbounds [512 x double], [512 x double]* %220, i64 %222
+  %224 = load i32, i32* %29, align 4
+  %225 = sext i32 %224 to i64
+  %226 = getelementptr inbounds [512 x double], [512 x double]* %223, i64 0, i64 %225
+  store double %219, double* %226, align 8
+  br label %227
 
-; <label>:229:                                    ; preds = %195
-  %230 = load i32, i32* %28, align 4
-  %231 = add nsw i32 %230, 1
-  store i32 %231, i32* %28, align 4
-  br label %191
+; <label>:227:                                    ; preds = %193
+  %228 = load i32, i32* %28, align 4
+  %229 = add nsw i32 %228, 1
+  store i32 %229, i32* %28, align 4
+  br label %189
 
-; <label>:232:                                    ; preds = %191
-  call void @__kmpc_end_critical(%ident_t* @1, i32 %155, [8 x i32]* @.gomp_critical_user_.var)
-  br label %233
+; <label>:230:                                    ; preds = %189
+  br label %231
 
-; <label>:233:                                    ; preds = %232
-  %234 = load i32, i32* %29, align 4
-  %235 = add nsw i32 %234, 1
-  store i32 %235, i32* %29, align 4
+; <label>:231:                                    ; preds = %230
+  %232 = load i32, i32* %29, align 4
+  %233 = add nsw i32 %232, 1
+  store i32 %233, i32* %29, align 4
   br label %142
 
-; <label>:236:                                    ; preds = %142
-  br label %237
+; <label>:234:                                    ; preds = %142
+  call void @__kmpc_end_critical(%ident_t* @1, i32 %69, [8 x i32]* @.gomp_critical_user_.var)
+  br label %235
 
-; <label>:237:                                    ; preds = %236
-  br label %238
+; <label>:235:                                    ; preds = %234
+  br label %236
 
-; <label>:238:                                    ; preds = %237
-  %239 = load i32, i32* %19, align 4
-  %240 = add nsw i32 %239, 1
-  store i32 %240, i32* %19, align 4
+; <label>:236:                                    ; preds = %235
+  %237 = load i32, i32* %19, align 4
+  %238 = add nsw i32 %237, 1
+  store i32 %238, i32* %19, align 4
   br label %60
 
-; <label>:241:                                    ; preds = %60
-  br label %242
+; <label>:239:                                    ; preds = %60
+  br label %240
 
-; <label>:242:                                    ; preds = %241
-  %243 = load i32*, i32** %10, align 8
-  %244 = load i32, i32* %243, align 4
-  call void @__kmpc_for_static_fini(%ident_t* @0, i32 %244)
-  br label %245
+; <label>:240:                                    ; preds = %239
+  %241 = load i32*, i32** %10, align 8
+  %242 = load i32, i32* %241, align 4
+  call void @__kmpc_for_static_fini(%ident_t* @0, i32 %242)
+  br label %243
 
-; <label>:245:                                    ; preds = %242, %9
+; <label>:243:                                    ; preds = %240, %9
   ret void
 }
 

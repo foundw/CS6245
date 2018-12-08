@@ -409,7 +409,7 @@ define internal void @.omp_outlined.(i32* noalias, i32* noalias, i32* dereferenc
   store i32 0, i32* %25, align 4
   %48 = load i32, i32* %23, align 4
   %49 = icmp slt i32 0, %48
-  br i1 %49, label %50, label %191
+  br i1 %49, label %50, label %189
 
 ; <label>:50:                                     ; preds = %10
   store i32 0, i32* %26, align 4
@@ -440,11 +440,11 @@ define internal void @.omp_outlined.(i32* noalias, i32* noalias, i32* dereferenc
   store i32 %63, i32* %21, align 4
   br label %64
 
-; <label>:64:                                     ; preds = %184, %61
+; <label>:64:                                     ; preds = %182, %61
   %65 = load i32, i32* %21, align 4
   %66 = load i32, i32* %27, align 4
   %67 = icmp sle i32 %65, %66
-  br i1 %67, label %68, label %187
+  br i1 %67, label %68, label %185
 
 ; <label>:68:                                     ; preds = %64
   %69 = load i32, i32* %21, align 4
@@ -454,28 +454,28 @@ define internal void @.omp_outlined.(i32* noalias, i32* noalias, i32* dereferenc
   store i32 0, i32* %30, align 4
   br label %72
 
-; <label>:72:                                     ; preds = %179, %68
+; <label>:72:                                     ; preds = %177, %68
   %73 = load i32, i32* %30, align 4
   %74 = load i32, i32* %35, align 4
   %75 = icmp slt i32 %73, %74
-  br i1 %75, label %76, label %182
+  br i1 %75, label %76, label %180
 
 ; <label>:76:                                     ; preds = %72
+  %77 = load i32*, i32** %11, align 8
+  %78 = load i32, i32* %77, align 4
+  call void @__kmpc_critical(%ident_t* @1, i32 %78, [8 x i32]* @.gomp_critical_user_.var)
   store double 0.000000e+00, double* %31, align 8
   store i32 0, i32* %32, align 4
-  br label %77
+  br label %79
 
-; <label>:77:                                     ; preds = %132, %76
-  %78 = load i32, i32* %32, align 4
-  %79 = load i32, i32* %30, align 4
-  %80 = sub nsw i32 %79, 1
-  %81 = icmp slt i32 %78, %80
-  br i1 %81, label %82, label %135
+; <label>:79:                                     ; preds = %132, %76
+  %80 = load i32, i32* %32, align 4
+  %81 = load i32, i32* %30, align 4
+  %82 = sub nsw i32 %81, 1
+  %83 = icmp slt i32 %80, %82
+  br i1 %83, label %84, label %135
 
-; <label>:82:                                     ; preds = %77
-  %83 = load i32*, i32** %11, align 8
-  %84 = load i32, i32* %83, align 4
-  call void @__kmpc_critical(%ident_t* @1, i32 %84, [8 x i32]* @.gomp_critical_user_.var)
+; <label>:84:                                     ; preds = %79
   %85 = load double, double* %37, align 8
   %86 = load [1024 x double]*, [1024 x double]** %38, align 8
   %87 = load i32, i32* %32, align 4
@@ -505,7 +505,6 @@ define internal void @.omp_outlined.(i32* noalias, i32* noalias, i32* dereferenc
   %111 = load double, double* %110, align 8
   %112 = fadd double %111, %103
   store double %112, double* %110, align 8
-  call void @__kmpc_end_critical(%ident_t* @1, i32 %84, [8 x i32]* @.gomp_critical_user_.var)
   %113 = load [1024 x double]*, [1024 x double]** %39, align 8
   %114 = load i32, i32* %32, align 4
   %115 = sext i32 %114 to i64
@@ -528,92 +527,89 @@ define internal void @.omp_outlined.(i32* noalias, i32* noalias, i32* dereferenc
   store double %131, double* %31, align 8
   br label %132
 
-; <label>:132:                                    ; preds = %82
+; <label>:132:                                    ; preds = %84
   %133 = load i32, i32* %32, align 4
   %134 = add nsw i32 %133, 1
   store i32 %134, i32* %32, align 4
-  br label %77
+  br label %79
 
-; <label>:135:                                    ; preds = %77
-  %136 = load i32*, i32** %11, align 8
-  %137 = load i32, i32* %136, align 4
-  call void @__kmpc_critical(%ident_t* @1, i32 %137, [8 x i32]* @.gomp_critical_user_.var)
-  %138 = load double, double* %40, align 8
-  %139 = load [1024 x double]*, [1024 x double]** %36, align 8
-  %140 = load i32, i32* %25, align 4
-  %141 = sext i32 %140 to i64
-  %142 = getelementptr inbounds [1024 x double], [1024 x double]* %139, i64 %141
-  %143 = load i32, i32* %30, align 4
-  %144 = sext i32 %143 to i64
-  %145 = getelementptr inbounds [1024 x double], [1024 x double]* %142, i64 0, i64 %144
-  %146 = load double, double* %145, align 8
-  %147 = fmul double %138, %146
-  %148 = load double, double* %37, align 8
-  %149 = load [1024 x double]*, [1024 x double]** %38, align 8
-  %150 = load i32, i32* %25, align 4
-  %151 = sext i32 %150 to i64
-  %152 = getelementptr inbounds [1024 x double], [1024 x double]* %149, i64 %151
-  %153 = load i32, i32* %25, align 4
-  %154 = sext i32 %153 to i64
-  %155 = getelementptr inbounds [1024 x double], [1024 x double]* %152, i64 0, i64 %154
-  %156 = load double, double* %155, align 8
-  %157 = fmul double %148, %156
-  %158 = load [1024 x double]*, [1024 x double]** %39, align 8
-  %159 = load i32, i32* %25, align 4
-  %160 = sext i32 %159 to i64
-  %161 = getelementptr inbounds [1024 x double], [1024 x double]* %158, i64 %160
-  %162 = load i32, i32* %30, align 4
-  %163 = sext i32 %162 to i64
-  %164 = getelementptr inbounds [1024 x double], [1024 x double]* %161, i64 0, i64 %163
-  %165 = load double, double* %164, align 8
-  %166 = fmul double %157, %165
-  %167 = fadd double %147, %166
-  %168 = load double, double* %37, align 8
-  %169 = load double, double* %31, align 8
-  %170 = fmul double %168, %169
-  %171 = fadd double %167, %170
-  %172 = load [1024 x double]*, [1024 x double]** %36, align 8
-  %173 = load i32, i32* %25, align 4
-  %174 = sext i32 %173 to i64
-  %175 = getelementptr inbounds [1024 x double], [1024 x double]* %172, i64 %174
-  %176 = load i32, i32* %30, align 4
-  %177 = sext i32 %176 to i64
-  %178 = getelementptr inbounds [1024 x double], [1024 x double]* %175, i64 0, i64 %177
-  store double %171, double* %178, align 8
-  call void @__kmpc_end_critical(%ident_t* @1, i32 %137, [8 x i32]* @.gomp_critical_user_.var)
-  br label %179
+; <label>:135:                                    ; preds = %79
+  %136 = load double, double* %40, align 8
+  %137 = load [1024 x double]*, [1024 x double]** %36, align 8
+  %138 = load i32, i32* %25, align 4
+  %139 = sext i32 %138 to i64
+  %140 = getelementptr inbounds [1024 x double], [1024 x double]* %137, i64 %139
+  %141 = load i32, i32* %30, align 4
+  %142 = sext i32 %141 to i64
+  %143 = getelementptr inbounds [1024 x double], [1024 x double]* %140, i64 0, i64 %142
+  %144 = load double, double* %143, align 8
+  %145 = fmul double %136, %144
+  %146 = load double, double* %37, align 8
+  %147 = load [1024 x double]*, [1024 x double]** %38, align 8
+  %148 = load i32, i32* %25, align 4
+  %149 = sext i32 %148 to i64
+  %150 = getelementptr inbounds [1024 x double], [1024 x double]* %147, i64 %149
+  %151 = load i32, i32* %25, align 4
+  %152 = sext i32 %151 to i64
+  %153 = getelementptr inbounds [1024 x double], [1024 x double]* %150, i64 0, i64 %152
+  %154 = load double, double* %153, align 8
+  %155 = fmul double %146, %154
+  %156 = load [1024 x double]*, [1024 x double]** %39, align 8
+  %157 = load i32, i32* %25, align 4
+  %158 = sext i32 %157 to i64
+  %159 = getelementptr inbounds [1024 x double], [1024 x double]* %156, i64 %158
+  %160 = load i32, i32* %30, align 4
+  %161 = sext i32 %160 to i64
+  %162 = getelementptr inbounds [1024 x double], [1024 x double]* %159, i64 0, i64 %161
+  %163 = load double, double* %162, align 8
+  %164 = fmul double %155, %163
+  %165 = fadd double %145, %164
+  %166 = load double, double* %37, align 8
+  %167 = load double, double* %31, align 8
+  %168 = fmul double %166, %167
+  %169 = fadd double %165, %168
+  %170 = load [1024 x double]*, [1024 x double]** %36, align 8
+  %171 = load i32, i32* %25, align 4
+  %172 = sext i32 %171 to i64
+  %173 = getelementptr inbounds [1024 x double], [1024 x double]* %170, i64 %172
+  %174 = load i32, i32* %30, align 4
+  %175 = sext i32 %174 to i64
+  %176 = getelementptr inbounds [1024 x double], [1024 x double]* %173, i64 0, i64 %175
+  store double %169, double* %176, align 8
+  call void @__kmpc_end_critical(%ident_t* @1, i32 %78, [8 x i32]* @.gomp_critical_user_.var)
+  br label %177
 
-; <label>:179:                                    ; preds = %135
-  %180 = load i32, i32* %30, align 4
-  %181 = add nsw i32 %180, 1
-  store i32 %181, i32* %30, align 4
+; <label>:177:                                    ; preds = %135
+  %178 = load i32, i32* %30, align 4
+  %179 = add nsw i32 %178, 1
+  store i32 %179, i32* %30, align 4
   br label %72
 
-; <label>:182:                                    ; preds = %72
-  br label %183
+; <label>:180:                                    ; preds = %72
+  br label %181
 
-; <label>:183:                                    ; preds = %182
-  br label %184
+; <label>:181:                                    ; preds = %180
+  br label %182
 
-; <label>:184:                                    ; preds = %183
-  %185 = load i32, i32* %21, align 4
-  %186 = add nsw i32 %185, 1
-  store i32 %186, i32* %21, align 4
+; <label>:182:                                    ; preds = %181
+  %183 = load i32, i32* %21, align 4
+  %184 = add nsw i32 %183, 1
+  store i32 %184, i32* %21, align 4
   br label %64
 
-; <label>:187:                                    ; preds = %64
-  br label %188
+; <label>:185:                                    ; preds = %64
+  br label %186
 
-; <label>:188:                                    ; preds = %187
-  %189 = load i32*, i32** %11, align 8
-  %190 = load i32, i32* %189, align 4
-  call void @__kmpc_for_static_fini(%ident_t* @0, i32 %190)
-  br label %191
+; <label>:186:                                    ; preds = %185
+  %187 = load i32*, i32** %11, align 8
+  %188 = load i32, i32* %187, align 4
+  call void @__kmpc_for_static_fini(%ident_t* @0, i32 %188)
+  br label %189
 
-; <label>:191:                                    ; preds = %188, %10
-  %192 = load i32*, i32** %11, align 8
-  %193 = load i32, i32* %192, align 4
-  call void @__kmpc_barrier(%ident_t* @2, i32 %193)
+; <label>:189:                                    ; preds = %186, %10
+  %190 = load i32*, i32** %11, align 8
+  %191 = load i32, i32* %190, align 4
+  call void @__kmpc_barrier(%ident_t* @2, i32 %191)
   ret void
 }
 
