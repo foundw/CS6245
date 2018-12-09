@@ -47,7 +47,10 @@ class FunctionPassVisitor : public FunctionPass {
     raw_os_ostream rawOstream;
     deque<Loop *> LQ;
     unordered_map<Value *, vector<pair<Value *, Instruction *>>> Writes;
-    unordered_map<Value *, Value *> ReadsWrites;
+    unordered_map<Value *, unordered_set<Value *>> ReadsWrites;
+    vector<pair<Value *, PtrInfo *>> WInst;
+    unordered_map<Instruction *, pair<Value *, PtrInfo *>> RInst;
+    int cnt = 0;
 public:
     static char ID;
 
@@ -67,8 +70,6 @@ public:
     }
 
     void printResult() {
-        cout << "Data Races Report:" << endl;
-        int cnt = 0;
         // Print Write-Write Races
         for (auto opr : Writes) {
             for (int i = 0; i < opr.second.size(); i++) {
@@ -86,17 +87,76 @@ public:
                 }
             }
         }
-        // Print Read-Write Races
-        for (auto opr : ReadsWrites) {
-            (opr.first)->print(rawOstream);
-            cout << endl;
-            (opr.second)->print(rawOstream);
-            cout << endl;
-            cout << "data races: read-write" << endl;
-            cout << endl;
-            cnt++;
+        // Analysis and Print Read-Write Races
+        for(auto iteratorR = RInst.begin(); iteratorR != RInst.end(); iteratorR++){
+            unordered_map<Value *, unsigned long> used;
+            vector<Value *> ldRace;
+            vector<Value *> ldInsts;
+            vector<PtrInfo *> ldShow;
+            for (auto iterator = WInst.begin(); iterator != WInst.end(); iterator++) {
+                if (iteratorR->second.first && iteratorR->second.first == iterator->first) {
+                    continue;
+                }
+                PtrInfo *loadInfo = (iteratorR->second.second);
+                Instruction *lInst = (iteratorR->first);
+                PtrInfo *storeInfo = (iterator->second);
+
+
+                if (storeInfo->source == loadInfo->source) {
+                    bool hasRace = true;
+                    if (!storeInfo->hasRace && !loadInfo->hasRace) {
+                        for (int i = 0; hasRace && i < storeInfo->index.size(); i++) {
+                            if (*(storeInfo->origin.begin() + i)) {
+                                if (*(storeInfo->index.begin() + i) == *(loadInfo->index.begin() + i))
+                                    hasRace = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (hasRace) {
+                        if (!used.count(storeInfo->source)) {
+                            used[storeInfo->source] = storeInfo->index.size();
+                        } else {
+                            if (storeInfo->index.size() > used[storeInfo->source]) {
+                                used[storeInfo->source] = storeInfo->index.size();
+                                for (int i = 0; i < ldRace.size(); ++i) {
+                                    if ((*(ldRace.begin() + i)) == storeInfo->source) {
+                                        ldRace.erase(ldRace.begin() + i);
+                                        ldShow.erase(ldShow.begin() + i);
+                                        ldInsts.erase(ldInsts.begin() + i);
+                                        i--;
+                                    }
+                                }
+                            }
+                        }
+                        if (storeInfo->index.size() == used[storeInfo->source] &&
+                            storeInfo->source != nullptr) {
+                            ldRace.push_back(storeInfo->source);
+                            ldShow.push_back(storeInfo);
+                            ldInsts.push_back(lInst);
+                        }
+
+                    }
+                }
+                auto show = ldShow.begin();
+                auto ldInst = ldInsts.begin();
+                for (auto it = ldRace.begin(); it != ldRace.end(); it++, show++, ldInst++) {
+                    ReadsWrites[(*ldInst)].insert((*show)->storeInst);
+                }
+            }
         }
-        cout << cnt << " races detected." << endl;
+
+        for (auto opr : ReadsWrites) {
+            for(auto sInst: opr.second){
+                (opr.first)->print(rawOstream);
+                cout << endl;
+                (sInst)->print(rawOstream);
+                cout << endl;
+                cout << "data races: read-write" << endl;
+                cout << endl;
+                cnt++;
+            }
+        }
     }
 
     void retrieveInfulence(set<Value *> &omp_protected, Value *val) {
@@ -171,6 +231,8 @@ public:
 
 
         const LoopInfo &loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+        cout << "Data Races Report:" << endl;
+        cnt = 0;
         for (int i = 0; i < (int) start.size(); i++) {
             set<Value *> omp_upper;
             set<Value *> omp_protected;
@@ -183,13 +245,14 @@ public:
             while (current != terminate && loopInfo.getLoopDepth(current) == 0) {
                 current = current->getNextNode();
             }
+            WInst.clear();
             ReadsWrites.clear();
             Writes.clear(); // Init for each region (there is a barrior at the end of each region)
             analysisLoop(omp_upper, omp_protected, v, loopInfo.getLoopFor(current), loopInfo, nullptr, loopUppers,
                          globalScalar);
             printResult();
-
         }
+        cout << cnt << " races detected." << endl;
         return true;
     }
 
@@ -228,7 +291,6 @@ public:
             }
         }
 
-        vector<pair<Value *, PtrInfo *>> WInst;
         for (auto bb = currentBB.begin(); bb != currentBB.end(); bb++) {
             for (auto I = (*bb)->begin(); I != (*bb)->end(); I++) {
                 if (auto inst = dyn_cast<StoreInst>(I)) {
@@ -263,7 +325,7 @@ public:
                 }
             }
         }
-        //first search write, then search read
+
         for (auto bb = currentBB.begin(); bb != currentBB.end(); bb++) {
             unordered_map<Value *, unsigned long> used;
             vector<Value *> ldRace;
@@ -286,56 +348,10 @@ public:
 
                         PtrInfo &loadInfo = resolvePointer(ptr, omp_protected, loop->getLoopDepth(), parentLoop,
                                                            loopInfo);
-                        for (auto iterator = WInst.begin(); iterator != WInst.end(); iterator++) {
-                            if(critical && critical == iterator->first){
-                                continue;
-                            }
-                            PtrInfo *storeInfo = (iterator->second);
-                            if (storeInfo->source == loadInfo.source) {
-                                bool hasRace = true;
-                                if (!storeInfo->hasRace && !loadInfo.hasRace) {
-                                    for (int i = 0; hasRace && i < storeInfo->index.size(); i++) {
-                                        if (*(storeInfo->origin.begin() + i)) {
-                                            if (*(storeInfo->index.begin() + i) == *(loadInfo.index.begin() + i))
-                                                hasRace = false;
-                                            break;
-                                        }
-                                    }
-                                }
-                                if (hasRace) {
-                                    if (!used.count(storeInfo->source)) {
-                                        used[storeInfo->source] = storeInfo->index.size();
-                                    } else {
-                                        if (storeInfo->index.size() > used[storeInfo->source]) {
-                                            used[storeInfo->source] = storeInfo->index.size();
-                                            for (int i = 0; i < ldRace.size(); ++i) {
-                                                if ((*(ldRace.begin() + i)) == storeInfo->source) {
-                                                    ldRace.erase(ldRace.begin() + i);
-                                                    ldShow.erase(ldShow.begin() + i);
-                                                    ldInsts.erase(ldInsts.begin() + i);
-                                                    i--;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (storeInfo->index.size() == used[storeInfo->source] &&
-                                        storeInfo->source != nullptr) {
-                                        ldRace.push_back(storeInfo->source);
-                                        ldShow.push_back(storeInfo);
-                                        ldInsts.push_back(inst);
-                                    }
-
-                                }
-                            }
-
-                        }
+                        RInst[inst] = (make_pair(critical, &loadInfo));
                     }
+
                 }
-            }
-            auto show = ldShow.begin();
-            auto ldInst = ldInsts.begin();
-            for (auto it = ldRace.begin(); it != ldRace.end(); it++, show++, ldInst++) {
-                ReadsWrites[(*ldInst)] = (*show)->storeInst;
             }
         }
 
